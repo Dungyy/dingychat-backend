@@ -8,10 +8,10 @@ export interface IRoom extends Document {
 }
 
 const RoomSchema: Schema<IRoom> = new Schema({
-  name: { type: String, required: true, unique: true },
-  createdAt: { type: Date, default: Date.now },
+  createdAt: { default: Date.now, type: Date },
+  ephemeral: { default: false, type: Boolean },
   expiresAt: { type: Date },
-  ephemeral: { type: Boolean, default: false },
+  name: { required: true, type: String, unique: true },
 });
 
 export default mongoose.model<IRoom>("Room", RoomSchema);

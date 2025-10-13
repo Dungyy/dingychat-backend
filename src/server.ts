@@ -1,10 +1,10 @@
-import express from "express";
 import http from "http";
-import { Server } from "socket.io";
-import dotenv from "dotenv";
 import cors from "cors";
-import authRoutes from "./routes/authRoutes";
+import dotenv from "dotenv";
+import express from "express";
+import { Server } from "socket.io";
 import { connectDB } from "./config/db";
+import authRoutes from "./routes/authRoutes";
 import { chatHandler } from "./socket/chatHandler";
 
 dotenv.config();

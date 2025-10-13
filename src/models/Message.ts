@@ -9,11 +9,11 @@ export interface IMessage extends Document {
 }
 
 const MessageSchema: Schema<IMessage> = new Schema({
-  room: { type: String, required: true },
-  sender: { type: String, required: true },
-  text: { type: String, required: true },
-  color: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
+  color: { required: true, type: String },
+  createdAt: { default: Date.now, type: Date },
+  room: { required: true, type: String },
+  sender: { required: true, type: String },
+  text: { required: true, type: String },
 });
 
 export default mongoose.model<IMessage>("Message", MessageSchema);

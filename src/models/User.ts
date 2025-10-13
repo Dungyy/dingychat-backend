@@ -1,5 +1,5 @@
-import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcryptjs";
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface IUser extends Document {
   username: string;
@@ -9,9 +9,9 @@ export interface IUser extends Document {
 }
 
 const UserSchema: Schema<IUser> = new Schema({
-  username: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  color: { type: String, required: true },
+  color: { required: false, type: String },
+  password: { required: true, type: String },
+  username: { required: true, type: String, unique: true },
 });
 
 UserSchema.pre<IUser>("save", async function (next) {
