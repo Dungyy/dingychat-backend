@@ -46,6 +46,23 @@ export const chatHandler = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log("User connected:", socket.data.username);
 
+        socket.on("createRoom", (roomName) => {
+          // Create or register the room
+          socket.join(roomName);
+
+          // Broadcast to everyone that a new room exists
+          io.emit("roomCreated", roomName);
+        });
+
+        socket.on("joinRoom", (roomName) => {
+          socket.join(roomName);
+          // Notify others in the room that someone joined
+          socket.to(roomName).emit("userJoinedRoom", {
+            room: roomName,
+            username: socket.data.username,
+          });
+        });
+      
     // ✅ JOIN ROOM
     socket.on("joinRoom", async (roomName: string) => {
       if (!roomName) return socket.emit("errorMessage", "Room name required");
