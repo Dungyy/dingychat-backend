@@ -5,6 +5,7 @@ import express from "express";
 import { Server } from "socket.io";
 import { connectDB } from "./config/db";
 import authRoutes from "./routes/authRoutes";
+import userRoutes from "./routes/userRoutes";
 import { chatHandler } from "./socket/chatHandler";
 
 dotenv.config();
@@ -20,6 +21,7 @@ connectDB();
 
 // REST API
 app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
 
 // Socket.IO
 chatHandler(io);

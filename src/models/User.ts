@@ -1,6 +1,12 @@
 import bcrypt from "bcryptjs";
 import mongoose, { Document, Schema } from "mongoose";
 
+// free user
+export interface IFreeUser {
+  username: string;
+  color?: string;
+}
+
 export interface IUser extends Document {
   username: string;
   password: string;

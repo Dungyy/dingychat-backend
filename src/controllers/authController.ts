@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import Room from "../models/Room";
 import User from "../models/User";
 import { randomColor } from "../utils/colorGen";
 
@@ -11,8 +12,8 @@ export const register = async (req: Request, res: Response) => {
       password,
       username,
     });
-      res.status(201).json({ message: "User registered" });
-      console.log("User registered:", user.username);
+    res.status(201).json({ message: "User registered" });
+    console.log("User registered:", user.username);
   } catch (err) {
     res.status(400).json({ error: err });
   }
@@ -32,6 +33,15 @@ export const login = async (req: Request, res: Response) => {
       { expiresIn: "1d" }
     );
     res.json({ color: user.color, token });
+  } catch (err) {
+    res.status(500).json({ error: err });
+  }
+};
+
+export const getRooms = async (req: Request, res: Response) => {
+  try {
+    const rooms = await Room.find({});
+    res.json(rooms);
   } catch (err) {
     res.status(500).json({ error: err });
   }

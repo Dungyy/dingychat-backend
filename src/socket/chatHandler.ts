@@ -18,10 +18,15 @@ export const chatHandler = (io: Server) => {
     if (!token) return next(new Error("Authentication error"));
 
     try {
+      interface JWTPayload {
+        username: string;
+        id: string;
+        [key: string]: unknown;
+      }
       const payload = jwt.verify(
         token,
         process.env.JWT_SECRET || "secret"
-      ) as any;
+      ) as JWTPayload;
       socket.data.username = payload.username;
       socket.data.userId = payload.id;
 
@@ -36,18 +41,24 @@ export const chatHandler = (io: Server) => {
   });
 
   io.on("connection", (socket: Socket) => {
-    console.log("✅ User connected:", socket.data.username);
+    console.log("User connected:", socket.data.username);
 
     // Join or create a room
     socket.on("joinRoom", async (roomName: string) => {
       if (!roomName) return socket.emit("errorMessage", "Room name required");
+
+      // Leave any previously joined room
+      if (socket.data.room && socket.data.room !== roomName) {
+        socket.leave(socket.data.room);
+        console.log(`${socket.data.username} left room: ${socket.data.room}`);
+      }
 
       // Check if room exists
       let room = await Room.findOne({ name: roomName });
       if (!room) {
         room = await Room.create({
           ephemeral: true,
-          expiresAt: new Date(Date.now() + 1000 * 60 * 60), // 1 hr expiry
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60),
           name: roomName,
         });
       }
@@ -55,7 +66,7 @@ export const chatHandler = (io: Server) => {
       socket.join(room.name);
       socket.data.room = room.name;
 
-      console.log(`📥 ${socket.data.username} joined room: ${room.name}`);
+      console.log(`${socket.data.username} joined room: ${room.name}`);
 
       // Broadcast join message
       socket.broadcast
@@ -76,11 +87,11 @@ export const chatHandler = (io: Server) => {
             await Message.deleteMany({ room: room.name });
             io.to(room.name).emit(
               "systemMessage",
-              "💨 This ephemeral room expired due to inactivity."
+              "This ephemeral room expired due to inactivity."
             );
             io.in(room.name).socketsLeave(room.name);
             await Room.deleteOne({ _id: room._id });
-            console.log(`🧹 Room ${room.name} auto-deleted.`);
+            console.log(`Room ${room.name} auto-deleted.`);
           }
         }, 1000 * 60 * 60); // 1 hour
       }
@@ -92,16 +103,16 @@ export const chatHandler = (io: Server) => {
       async (text: string, ephemeral: boolean = false) => {
         const { color, room, username } = socket.data as ChatData;
 
-        // ✅ Ensure user joined a room
+        // Ensure user joined a room
         if (!room) {
-          console.warn("⚠️ Message received before joining a room");
+          console.warn("Message received before joining a room");
           return socket.emit(
             "errorMessage",
             "You must join a room before sending messages."
           );
         }
 
-        // ✅ Create message safely
+        // Create message safely
         const message = await Message.create({
           color: color || "#999999",
           room,
@@ -141,7 +152,7 @@ export const chatHandler = (io: Server) => {
           .to(room)
           .emit("systemMessage", `${username} left the room`);
       }
-      console.log("❌ User disconnected:", username);
+      console.log("User disconnected:", username);
     });
   });
 };
