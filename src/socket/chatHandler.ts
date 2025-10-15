@@ -9,6 +9,9 @@ interface ChatData {
   color?: string;
 }
 
+// In-memory store for tracking users in each room
+const roomUsers: Record<string, Set<string>> = {};
+
 export const chatHandler = (io: Server) => {
   // Middleware: verify JWT for every socket connection
   io.use((socket: Socket, next) => {
@@ -23,14 +26,14 @@ export const chatHandler = (io: Server) => {
         id: string;
         [key: string]: unknown;
       }
+
       const payload = jwt.verify(
         token,
         process.env.JWT_SECRET || "secret"
       ) as JWTPayload;
+
       socket.data.username = payload.username;
       socket.data.userId = payload.id;
-
-      // Assign a random color to user if not already assigned
       socket.data.color =
         "#" + Math.floor(Math.random() * 16777215).toString(16);
 
@@ -43,17 +46,24 @@ export const chatHandler = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log("User connected:", socket.data.username);
 
-    // Join or create a room
+    // ✅ JOIN ROOM
     socket.on("joinRoom", async (roomName: string) => {
       if (!roomName) return socket.emit("errorMessage", "Room name required");
 
-      // Leave any previously joined room
+      // Leave old room
       if (socket.data.room && socket.data.room !== roomName) {
         socket.leave(socket.data.room);
-        console.log(`${socket.data.username} left room: ${socket.data.room}`);
+        if (roomUsers[socket.data.room]) {
+          roomUsers[socket.data.room].delete(socket.data.username);
+          io.to(socket.data.room).emit("roomUsers", {
+            count: roomUsers[socket.data.room].size,
+            room: socket.data.room,
+            users: Array.from(roomUsers[socket.data.room]),
+          });
+        }
       }
 
-      // Check if room exists
+      // Check or create room
       let room = await Room.findOne({ name: roomName });
       if (!room) {
         room = await Room.create({
@@ -66,20 +76,30 @@ export const chatHandler = (io: Server) => {
       socket.join(room.name);
       socket.data.room = room.name;
 
+      // Add to in-memory user tracker
+      if (!roomUsers[room.name]) roomUsers[room.name] = new Set();
+      roomUsers[room.name].add(socket.data.username);
+
       console.log(`${socket.data.username} joined room: ${room.name}`);
 
-      // Broadcast join message
+      // Notify all clients in the room
+      io.to(room.name).emit("roomUsers", {
+        count: roomUsers[room.name].size,
+        room: room.name,
+        users: Array.from(roomUsers[room.name]),
+      });
+
       socket.broadcast
         .to(room.name)
         .emit("systemMessage", `${socket.data.username} joined the room`);
 
-      // Load last 20 messages
+      // Load recent messages
       const messages = await Message.find({ room: room.name })
         .sort({ createdAt: -1 })
         .limit(20);
       socket.emit("loadMessages", messages.reverse());
 
-      // Ephemeral cleanup timer
+      // Ephemeral cleanup
       if (room.ephemeral) {
         setTimeout(async () => {
           const stillExists = await Room.findById(room._id);
@@ -97,22 +117,19 @@ export const chatHandler = (io: Server) => {
       }
     });
 
-    // Handle incoming chat messages
+    // ✅ CHAT MESSAGE
     socket.on(
       "chatMessage",
       async (text: string, ephemeral: boolean = false) => {
         const { color, room, username } = socket.data as ChatData;
 
-        // Ensure user joined a room
         if (!room) {
-          console.warn("Message received before joining a room");
           return socket.emit(
             "errorMessage",
             "You must join a room before sending messages."
           );
         }
 
-        // Create message safely
         const message = await Message.create({
           color: color || "#999999",
           room,
@@ -122,17 +139,17 @@ export const chatHandler = (io: Server) => {
 
         io.to(room).emit("chatMessage", message);
 
-        // Ephemeral message auto-delete
+        // Auto-delete ephemeral messages
         if (ephemeral) {
           setTimeout(async () => {
             await Message.deleteOne({ _id: message._id });
             io.to(room).emit("deleteMessage", message._id);
-          }, 1000 * 60 * 5); // 5 minutes
+          }, 1000 * 60 * 5);
         }
       }
     );
 
-    // Typing indicators
+    // ✅ TYPING INDICATORS
     socket.on("typing", () => {
       const { room, username } = socket.data as ChatData;
       if (room)
@@ -144,14 +161,24 @@ export const chatHandler = (io: Server) => {
       if (room) socket.broadcast.to(room).emit("stopTyping", username);
     });
 
-    // Handle disconnect
+    // ✅ HANDLE DISCONNECT
     socket.on("disconnect", () => {
       const { room, username } = socket.data as ChatData;
       if (room) {
+        if (roomUsers[room]) {
+          roomUsers[room].delete(username);
+          io.to(room).emit("roomUsers", {
+            count: roomUsers[room].size,
+            room,
+            users: Array.from(roomUsers[room]),
+          });
+        }
+
         socket.broadcast
           .to(room)
           .emit("systemMessage", `${username} left the room`);
       }
+
       console.log("User disconnected:", username);
     });
   });
