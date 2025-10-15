@@ -7,7 +7,7 @@ export interface IRoom extends Document {
   ephemeral: boolean;
 }
 
-const RoomSchema: Schema<IRoom> = new Schema({
+const RoomSchema = new Schema<IRoom>({
   createdAt: { default: Date.now, type: Date },
   ephemeral: { default: false, type: Boolean },
   expiresAt: { type: Date },
